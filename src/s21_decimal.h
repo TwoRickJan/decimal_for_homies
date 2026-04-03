@@ -92,7 +92,131 @@ int s21_compare(s21_decimal a, s21_decimal b, int *cmp);
 void s21_bank_round(s21_decimal *value, int remainder);
 #endif  // S21_DECIMAL_H
 
+/*// =========================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===========================
+// Уровень 0-1: базовые (используются везде)
 
+// s21_get_sign - используется во всех арифметических и сравнительных функциях: s21_add, s21_sub, s21_mul, s21_div, s21_is_less, s21_is_equal, s21_compare, s21_negate, s21_floor, s21_round, s21_truncate
+int s21_get_sign(s21_decimal d);
+
+// s21_set_sign - используется в: s21_add, s21_sub, s21_mul, s21_div, s21_negate, s21_floor, s21_round, s21_truncate, s21_add_sub_mantissa, s21_finalize_result
+void s21_set_sign(s21_decimal *d, int sign);
+
+// s21_get_scale - используется в: s21_add, s21_sub, s21_mul, s21_div, s21_compare, s21_normalize, s21_floor, s21_round, s21_truncate, s21_from_float_to_decimal, s21_from_decimal_to_float
+int s21_get_scale(s21_decimal d);
+
+// s21_set_scale - используется в: s21_add, s21_sub, s21_mul, s21_div, s21_normalize, s21_floor, s21_round, s21_truncate, s21_from_float_to_decimal, s21_finalize_result
+void s21_set_scale(s21_decimal *d, int scale);
+
+// s21_zero_decimal - используется в: s21_add, s21_sub, s21_mul, s21_div, s21_from_int_to_decimal, s21_from_float_to_decimal, s21_negate, s21_floor, s21_round, s21_truncate, s21_handle_zeros
+void s21_zero_decimal(s21_decimal *d);
+
+// s21_is_zero - используется в: s21_add, s21_sub, s21_mul, s21_div, s21_compare, s21_handle_zeros, s21_from_decimal_to_int, s21_floor, s21_round, s21_truncate, print_decimal
+int s21_is_zero(s21_decimal d);
+
+// =========================== УРОВЕНЬ 2: РАБОТА С МАНТИССОЙ ===========================
+
+// s21_compare_abs - используется в: s21_add_sub_mantissa, s21_compare
+int s21_compare_abs(s21_decimal a, s21_decimal b);
+
+// s21_sub_mantissa - используется в: s21_add_sub_mantissa
+int s21_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result);
+
+// s21_add_mantissa - используется в: s21_multiply_by_10, s21_add_sub_mantissa, s21_round_mantissa, s21_bank_round
+int s21_add_mantissa(s21_decimal a, s21_decimal b, s21_decimal *d);
+
+// s21_get_mantissa - используется в: s21_mul, s21_div
+void s21_get_mantissa(s21_decimal d, unsigned int *low, unsigned int *mid, unsigned int *high);
+
+// s21_set_mantissa - используется в: s21_mul, s21_div
+void s21_set_mantissa(s21_decimal *d, unsigned int low, unsigned int mid, unsigned int high);
+
+// s21_is_greater_mantissa - используется в: s21_compare (альтернатива compare_abs)
+int s21_is_greater_mantissa(s21_decimal a, s21_decimal b);
+
+// s21_is_less_mantissa - используется в: s21_compare (альтернатива compare_abs)
+int s21_is_less_mantissa(s21_decimal a, s21_decimal b);
+
+// =========================== УРОВЕНЬ 3: БИТОВЫЕ ОПЕРАЦИИ ===========================
+
+// s21_get_bit - используется в: s21_mul, s21_div (для поразрядных операций)
+int s21_get_bit(s21_decimal d, int index);
+
+// s21_set_bit - используется в: s21_mul, s21_div
+void s21_set_bit(s21_decimal *d, int index, int bit);
+
+// s21_left_shift_one - используется в: s21_left_shift_mantissa
+int s21_left_shift_one(s21_decimal *d);
+
+// s21_left_shift_mantissa - используется в: s21_multiply_by_10, s21_power_of_10, s21_mul, s21_shift_right_mantissa_with_round
+void s21_left_shift_mantissa(s21_decimal *d, int shift);
+
+// s21_right_shift_one - используется в: s21_right_shift_mantissa
+int s21_right_shift_one(s21_decimal *d);
+
+// s21_right_shift_mantissa - используется в: s21_shift_right_mantissa_with_round, s21_divide_mantissa_by_power_of_10
+void s21_right_shift_mantissa(s21_decimal *d, int shift);
+
+// =========================== УРОВЕНЬ 4: РАБОТА С 10 ===========================
+
+// s21_multiply_by_10 - используется в: s21_power_of_10, s21_normalize
+int s21_multiply_by_10(s21_decimal *d);
+
+// s21_power_of_10 - используется в: s21_normalize, s21_from_float_to_decimal
+void s21_power_of_10(s21_decimal *d, int n);
+
+// s21_divide_by_10_with_remainder - используется в: s21_divide_by_10, s21_divide_mantissa_by_power_of_10, print_decimal
+int s21_divide_by_10_with_remainder(s21_decimal *d);
+
+// s21_divide_by_10 - используется в: s21_normalize, s21_handle_operation_overflow, s21_divide_mantissa_by_power_of_10
+void s21_divide_by_10(s21_decimal *d);
+
+// s21_round_mantissa - используется в: s21_divide_by_10, s21_shift_right_mantissa_with_round
+void s21_round_mantissa(s21_decimal *d, int remainder);
+
+// s21_bank_round - используется в: s21_divide_by_10, s21_round, s21_from_float_to_decimal
+void s21_bank_round(s21_decimal *value, int remainder);
+
+// s21_divide_mantissa_by_power_of_10 - используется в: s21_truncate, s21_floor, s21_round, s21_from_decimal_to_int
+void s21_divide_mantissa_by_power_of_10(s21_decimal *d, int scale);
+
+// s21_shift_right_mantissa_with_round - используется в: s21_div, s21_divide_mantissa_by_power_of_10
+int s21_shift_right_mantissa_with_round(s21_decimal *d, int shift);
+
+// =========================== УРОВЕНЬ 5: НОРМАЛИЗАЦИЯ И ОБРАБОТКА ===========================
+
+// s21_handle_zeros - используется в: s21_add, s21_sub
+int s21_handle_zeros(s21_decimal *a, s21_decimal *b, s21_decimal *result);
+
+// s21_normalize - используется в: s21_add, s21_sub, s21_compare
+int s21_normalize(s21_decimal *a, s21_decimal *b);
+
+// s21_remove_trailing_zeros - используется в: s21_div, s21_from_float_to_decimal
+void s21_remove_trailing_zeros(s21_decimal *d);
+
+// s21_handle_operation_overflow - используется в: s21_add, s21_sub
+int s21_handle_operation_overflow(int was_overflow, s21_decimal *temp, int *max_scale, int sign);
+
+// s21_finalize_result - используется в: s21_add, s21_sub
+void s21_finalize_result(s21_decimal *temp, s21_decimal *result, int max_scale, int sign);
+
+// =========================== УРОВЕНЬ 6: КОМБИНИРОВАННЫЕ ОПЕРАЦИИ ===========================
+
+// s21_add_sub_mantissa - используется в: s21_add, s21_sub
+int s21_add_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result, int sign, int *overflow);
+
+// s21_compare - используется в: s21_is_less, s21_is_equal, s21_is_greater, s21_is_less_or_equal, s21_is_greater_or_equal, s21_is_not_equal
+int s21_compare(s21_decimal a, s21_decimal b, int *cmp);
+
+// =========================== УРОВЕНЬ 7: 192-БИТНЫЕ ОПЕРАЦИИ (ДЛЯ MUL/DIV) ===========================
+
+// s21_add_192 - используется в: s21_mul
+void s21_add_192(unsigned int *a, unsigned int *b, unsigned int *result);
+
+// s21_mul_192_by_32 - используется в: s21_mul
+void s21_mul_192_by_32(unsigned int *a, unsigned int b, unsigned int *result);
+
+// s21_div_192_by_32 - используется в: s21_div
+unsigned int s21_div_192_by_32(unsigned int *a, unsigned int b, unsigned int *result);*/
 /* ## Уровни функций от базовых к сложным
 
 ---
