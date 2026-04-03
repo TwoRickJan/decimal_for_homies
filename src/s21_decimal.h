@@ -18,6 +18,7 @@ typedef struct {
 #define S21_TOO_LARGE 1      // число слишком велико или равно бесконечности
 #define S21_TOO_SMALL 2      // число слишком мало или равно отрицательной бесконечности
 #define S21_DIVISION_BY_ZERO 3
+#define S21_NORMOLIZATION_ERROR 4
 
 // Коды возврата для операций сравнения
 #define S21_FALSE 0
@@ -87,7 +88,7 @@ int s21_normalize(s21_decimal *a, s21_decimal *b);
 int s21_shift_right_mantissa_with_round(s21_decimal *d, int shift);
 void s21_remove_trailing_zeros(s21_decimal *d);
 int s21_add_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result, int sign, int *overflow);
-int s21_compare(s21_decimal a, s21_decimal b);
+int s21_compare(s21_decimal a, s21_decimal b, int *cmp);
 void s21_bank_round(s21_decimal *value, int remainder);
 #endif  // S21_DECIMAL_H
 

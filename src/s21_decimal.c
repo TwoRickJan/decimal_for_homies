@@ -431,47 +431,56 @@ void s21_right_shift_mantissa(s21_decimal *d, int shift) {
  * Сложение двух мантисс (96 бит) без учёта масштаба и знака
  * 
  * Возвращает:
- *   1 — успешно (результат в d)
- *   0 — переполнение (сумма > 2^96 - 1)
+ *   0 S21_OK — успешно (результат в d)
+ *   1 S21_TOO_LARGE — переполнение (сумма > 2^96 - 1) 
  */
 int s21_add_mantissa(s21_decimal a, s21_decimal b, s21_decimal *d) {
     unsigned int overflow = 0;
     s21_decimal result = {0};
-    
     // Складываем по словам от младшего к старшему
+    // для справки unsigned long long 2 слова 64 бита
+    //  в него складываем результат суммы  a.bits[i]+a.bits[i] , может стать 33 бита
+    // все что старше 32 битов сохраняем в overflow
+    // далее приводим его обратно к формату 32 бита
+    
     for (int i = 0; i < 3; i++) {
         unsigned long long sum = (unsigned long long)a.bits[i] + 
                                   b.bits[i] + 
                                   overflow;
-        result.bits[i] = sum & 0xFFFFFFFF;
-        overflow = sum >> 32;
+        result.bits[i] = sum & S21_MASK_32BIT; //— отбрасываем всё, что не влезло в 32 бита
+        overflow = sum >> 32; // сохраняем превшение больше 32 бит
     }
     
     // Если после сложения всех слов есть переполнение → результат > 96 бит
     if (overflow) {
-        return 0;  // переполнение
+        return S21_TOO_LARGE;  // переполнение
     }
     
     *d = result;
-    return 1;  // успешно
+    return S21_OK;  // успешно
 }
-// Умножить мантиссу на 10, вернуть 1 при переполнении
+/* Умножить мантиссу на 10, вернуть 1 при переполнении
+Релизует формулу x * 10 = x * (8 + 2) = x*8 + x*2 = x * 2^3 + x * 2^2
+Возвращает: 
+0 S21_OK — успешно (результат в d)
+1 S21_TOO_LARGE — переполнение (сумма > 2^96 - 1)*/
 int s21_multiply_by_10(s21_decimal *d) {
     s21_decimal temp = *d;
     
     // Умножение на 10 = (x << 3) + (x << 1)
-    s21_left_shift_mantissa(&temp, 3);  // *8
+    // x * 10 = x * (8 + 2) = x*8 + x*2
+    s21_left_shift_mantissa(&temp, 3);  // (x << 3) = x*8
     s21_decimal copy = *d;
-    s21_left_shift_mantissa(&copy, 1);  // *2
+    s21_left_shift_mantissa(&copy, 1);  // (x << 1) = x*2
     
-    // Складываем
-    return s21_add_mantissa(temp, copy, d);  // нужно реализовать сложение мантисс
+    // Складываем (x << 3) + (x << 1)
+    return s21_add_mantissa(temp, copy, d);  
 }
 
 // Умножение на 10^n (n от 0 до 28)
 void s21_power_of_10(s21_decimal *d, int n) {
     for (int i = 0; i < n; i++) {
-        if (!s21_multiply_by_10(d)) {
+        if (s21_multiply_by_10(d) == S21_TOO_LARGE) {
             break;  // переполнение
         }
     }
@@ -544,19 +553,19 @@ void s21_round_mantissa(s21_decimal *d, int remainder) {
  * При переполнении уменьшает масштаб и округляет
  * 
  * Возвращает:
- *   1 — нормализация успешна
- *   0 — ошибка (число не удалось нормализовать)
+ *   S21_OK — нормализация успешна
+ *   S21_NORMOLIZATION_ERROR — ошибка (число не удалось нормализовать)
  */
 int s21_normalize(s21_decimal *a, s21_decimal *b) {
     int scale_a = s21_get_scale(*a);
     int scale_b = s21_get_scale(*b);
     
-    if (scale_a == scale_b) return 1;
+    if (scale_a == scale_b) return S21_OK;
     
     if (scale_a < scale_b) {
         int diff = scale_b - scale_a;
         for (int i = 0; i < diff; i++) {
-            if (!s21_multiply_by_10(a)) {
+            if (s21_multiply_by_10(a) == S21_TOO_LARGE) {
                 // Переполнение при умножении → нужно уменьшить масштаб
                 if (scale_a > 0) {
                     // Уменьшаем масштаб a и делим мантиссу на 10
@@ -564,7 +573,7 @@ int s21_normalize(s21_decimal *a, s21_decimal *b) {
                     scale_a--;
                     i--;  // повторяем умножение
                 } else {
-                    return 0;  // не удалось нормализовать
+                    return S21_NORMOLIZATION_ERROR;  // не удалось нормализовать
                 }
             }
         }
@@ -572,20 +581,20 @@ int s21_normalize(s21_decimal *a, s21_decimal *b) {
     } else {
         int diff = scale_a - scale_b;
         for (int i = 0; i < diff; i++) {
-            if (!s21_multiply_by_10(b)) {
+            if (s21_multiply_by_10(b) == S21_TOO_LARGE) {
                 if (scale_b > 0) {
                     s21_divide_by_10(b);
                     scale_b--;
                     i--;
-                } else {
-                    return 0;
-                }
+    } else {
+                    return S21_NORMOLIZATION_ERROR;
+    }
             }
         }
         s21_set_scale(b, scale_a);
     }
     
-    return 1;
+    return S21_OK;
 }
 
 
@@ -639,8 +648,8 @@ void s21_remove_trailing_zeros(s21_decimal *d) {
  * Сложение или вычитание мантисс в зависимости от знаков
  * 
  * Возвращает:
- *   0 — успешно
- *   1 — переполнение при сложении
+ *   0 S21_OK — успешно
+ *   1 S21_TOO_LARGE — переполнение при сложении
  */
 int s21_add_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result, int sign, int *overflow) {
     int sign_a = s21_get_sign(a);
@@ -648,11 +657,11 @@ int s21_add_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result, int 
     
     // Знаки одинаковые → складываем
     if (sign_a == sign_b) {
-        if (!s21_add_mantissa(a, b, result)) {
-            return 1;  // переполнение
+        if (s21_add_mantissa(a, b, result)) {
+            return S21_TOO_LARGE;  // переполнение
         }
         s21_set_sign(result, sign_a);
-        return 0;
+        return S21_OK;
     }
     
     // Знаки разные → вычитаем
@@ -661,7 +670,7 @@ int s21_add_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result, int 
     if (cmp == 0) {
         // Числа равны по модулю → результат 0
         s21_zero_decimal(result);
-        return 0;
+        return S21_OK;
     }
     
     if (cmp > 0) {
@@ -674,52 +683,64 @@ int s21_add_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result, int 
         s21_set_sign(result, sign_b);
     }
     
-    return 0;
+    return S21_OK;
 }
 
 /*
  * Сравнение двух decimal чисел
  * Возвращает:
+ *   0 — S21_OK (нормализация успешна, результат в cmp)
+ *   4 — S21_NORMOLIZATION_ERROR (ошибка нормализации)
+ * 
+ * Результат сравнения передаётся через указатель cmp:
  *   1 — если a > b
  *   0 — если a == b
  *   -1 — если a < b
  */
-int s21_compare(s21_decimal a, s21_decimal b) {
+int s21_compare(s21_decimal a, s21_decimal b, int *cmp) {
     // Получить знаки и масштабы
     int sign_a = s21_get_sign(a);
     int sign_b = s21_get_sign(b);
-    
+    int scale_a = s21_get_scale(a);
+    int scale_b = s21_get_scale(b);
+
     // Если знаки разные
     if (sign_a != sign_b) {
-        if (sign_a == 0 && sign_b == 1) return 1;  // a > b
-        if (sign_a == 1 && sign_b == 0) return -1; // a < b
+        if (sign_a == 0 && sign_b == 1) {
+            *cmp = 1;  // a > b
+            return S21_OK;
+        }
+        if (sign_a == 1 && sign_b == 0) {
+            *cmp = -1;  // a < b
+            return S21_OK;
+        }
     }
     
     // Нормализация масштабов
-    int scale_a = s21_get_scale(a);
-    int scale_b = s21_get_scale(b);
-    
     if (scale_a != scale_b) {
-        s21_normalize(&a, &b);
-
+        int norm_result = s21_normalize(&a, &b);
+        if (norm_result != 0) {
+            return S21_NORMOLIZATION_ERROR;
+        }
     }
     
     // Сравнение мантисс
-    int cmp = 0;
     if (a.bits[2] != b.bits[2]) {
-        cmp = (a.bits[2] > b.bits[2]) ? 1 : -1;
+        *cmp = (a.bits[2] > b.bits[2]) ? 1 : -1;
     } else if (a.bits[1] != b.bits[1]) {
-        cmp = (a.bits[1] > b.bits[1]) ? 1 : -1;
+        *cmp = (a.bits[1] > b.bits[1]) ? 1 : -1;
     } else if (a.bits[0] != b.bits[0]) {
-        cmp = (a.bits[0] > b.bits[0]) ? 1 : -1;
+        *cmp = (a.bits[0] > b.bits[0]) ? 1 : -1;
+    } else {
+        *cmp = 0;
     }
     
     // Если оба отрицательные — результат инвертировать
     if (sign_a == 1) {
-        cmp = -cmp;
+        *cmp = -(*cmp);
     }
     
-    return cmp;
+    return S21_OK;
 }
 void s21_bank_round(s21_decimal *value, int remainder) {
     if (remainder > 5) {
@@ -777,7 +798,7 @@ int s21_add(s21_decimal value_1, s21_decimal value_2, s21_decimal *result) {
     }
     
     s21_finalize_result(&temp_result, result, max_scale, sign);
-    return S21_OK;
+    return S21_TOO_LARGE;
 }
 
 int s21_sub(s21_decimal value_1, s21_decimal value_2, s21_decimal *result) {
@@ -823,29 +844,51 @@ int s21_div(s21_decimal value_1, s21_decimal value_2, s21_decimal *result) {
 // =========================== ОПЕРАТОРЫ СРАВНЕНИЯ  ===========================
 
 int s21_is_less(s21_decimal a, s21_decimal b) {
-    return s21_compare(a, b) == -1;
-}
-
-int s21_is_less_or_equal(s21_decimal a, s21_decimal b) {
-    int cmp = s21_compare(a, b);
-    return cmp == -1 || cmp == 0;
-}
-
-int s21_is_greater(s21_decimal a, s21_decimal b) {
-    return s21_compare(a, b) == 1;
-}
-
-int s21_is_greater_or_equal(s21_decimal a, s21_decimal b) {
-    int cmp = s21_compare(a, b);
-    return cmp == 1 || cmp == 0;
+    int cmp;
+    if (s21_compare(a, b, &cmp) != S21_OK) {
+        return S21_FALSE;
+    }
+    return cmp == -1;
 }
 
 int s21_is_equal(s21_decimal a, s21_decimal b) {
-    return s21_compare(a, b) == 0;
+    int cmp;
+    if (s21_compare(a, b, &cmp) != S21_OK) {
+        return S21_FALSE;
+    }
+    return cmp == 0;
+}
+
+int s21_is_greater(s21_decimal a, s21_decimal b) {
+    int cmp;
+    if (s21_compare(a, b, &cmp) != S21_OK) {
+        return S21_FALSE;
+    }
+    return cmp == 1;
+}
+
+int s21_is_less_or_equal(s21_decimal a, s21_decimal b) {
+    int cmp;
+    if (s21_compare(a, b, &cmp) != S21_OK) {
+        return S21_FALSE;
+    }
+    return cmp == -1 || cmp == 0;
+}
+
+int s21_is_greater_or_equal(s21_decimal a, s21_decimal b) {
+    int cmp;
+    if (s21_compare(a, b, &cmp) != S21_OK) {
+        return S21_FALSE;
+    }
+    return cmp == 1 || cmp == 0;
 }
 
 int s21_is_not_equal(s21_decimal a, s21_decimal b) {
-    return s21_compare(a, b) != 0;
+    int cmp;
+    if (s21_compare(a, b, &cmp) != S21_OK) {
+        return S21_FALSE;
+    }
+    return cmp != 0;
 }
 
 // =========================== ПРЕОБРАЗОВАТЕЛИ ===========================

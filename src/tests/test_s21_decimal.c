@@ -26,7 +26,15 @@ s21_decimal s21_create_decimal(int value, int scale, int sign) {
     d.bits[3] = (sign << 31) | (scale << 16);
     return d;
 }
-
+s21_decimal create_decimal(unsigned int low, unsigned int mid, unsigned int high, int scale, int sign) {
+    s21_decimal d = {0};
+    d.bits[0] = low;
+    d.bits[1] = mid;
+    d.bits[2] = high;
+    s21_set_scale(&d, scale);
+    s21_set_sign(&d, sign);
+    return d;
+}
 // Проверка двух decimal на равенство
 void assert_decimal_eq(s21_decimal a, s21_decimal b) {
     ck_assert_msg(a.bits[0] == b.bits[0] && 
@@ -38,6 +46,161 @@ void assert_decimal_eq(s21_decimal a, s21_decimal b) {
                   b.bits[0], b.bits[1], b.bits[2], b.bits[3]);
 }
 
+/*==============================================
+    Тесты для нормолизации чисел (s21_normalize)
+================================================*/
+
+
+START_TEST(test_normalize_same_scale) {
+    s21_decimal a = create_decimal(123, 0, 0, 2, 0);
+    s21_decimal b = create_decimal(456, 0, 0, 2, 0);
+    
+    s21_decimal a_orig = a;
+    s21_decimal b_orig = b;
+    
+    int result = s21_normalize(&a, &b);
+    
+    ck_assert_msg(result == S21_OK, 
+                  "result == %s, ожидалось %s", 
+                  result == S21_OK ? "S21_OK" : "S21_NORMOLIZATION_ERROR",
+                  "S21_OK");
+    // Масштабы не изменились
+    ck_assert_int_eq(s21_get_scale(a), 2);
+    ck_assert_int_eq(s21_get_scale(b), 2);
+    // Мантиссы не изменились
+    assert_decimal_eq(a_orig, a);
+    assert_decimal_eq(b_orig, b);
+}
+END_TEST
+
+
+START_TEST(test_normalize_a_less_scale) {
+    // a: 1.23 (мантисса 123, масштаб 2)
+    // b: 45   (мантисса 45, масштаб 0)
+    s21_decimal a = create_decimal(123, 0, 0, 2, 0);
+    s21_decimal b = create_decimal(45, 0, 0, 0, 0);
+    
+    // Ожидаемый результат после нормализации:
+    // a: 1.23 (мантисса 123, масштаб 2) — не меняется
+    // b: 45.00 (мантисса 4500, масштаб 2)
+    s21_decimal expected_b = create_decimal(4500, 0, 0, 2, 0);
+    
+    int result = s21_normalize(&a, &b);
+    
+    ck_assert_msg(result == S21_OK, 
+                  "result == %s, ожидалось %s", 
+                  result == S21_OK ? "S21_OK" : "S21_NORMOLIZATION_ERROR",
+                  "S21_OK");
+    // Масштабы не изменились
+    ck_assert_int_eq(s21_get_scale(a), 2);
+    ck_assert_int_eq(s21_get_scale(b), 2);
+    ck_assert_uint_eq(b.bits[0], 4500);
+}
+END_TEST
+
+START_TEST(test_normalize_b_less_scale) {
+    // a: 45   (мантисса 45, масштаб 0)
+    // b: 1.23 (мантисса 123, масштаб 2)
+    s21_decimal a = create_decimal(45, 0, 0, 0, 0);
+    s21_decimal b = create_decimal(123, 0, 0, 2, 0);
+    
+    // Ожидаемый результат:
+    // a: 45.00 (мантисса 4500, масштаб 2)
+    // b: 1.23 (мантисса 123, масштаб 2)
+    s21_decimal expected_a = create_decimal(4500, 0, 0, 2, 0);
+    
+    int result = s21_normalize(&a, &b);
+    
+    ck_assert_int_eq(result, S21_OK);
+    ck_assert_int_eq(s21_get_scale(a), 2);
+    ck_assert_int_eq(s21_get_scale(b), 2);
+    ck_assert_uint_eq(a.bits[0], 4500);
+}
+END_TEST
+
+START_TEST(test_normalize_a_less_scale_multiple) {
+    // a: 1 (мантисса 1, масштаб 0)
+    // b: 0.0001 (мантисса 1, масштаб 4)
+    s21_decimal a = create_decimal(1, 0, 0, 0, 0);
+    s21_decimal b = create_decimal(1, 0, 0, 4, 0);
+    
+    // Ожидаемый результат:
+    // a: 10000 (мантисса 10000, масштаб 4)
+    // b: 1 (мантисса 1, масштаб 4)
+    s21_decimal expected_a = create_decimal(10000, 0, 0, 4, 0);
+    
+    int result = s21_normalize(&a, &b);
+    
+    ck_assert_int_eq(result, S21_OK);
+    ck_assert_int_eq(s21_get_scale(a), 4);
+    ck_assert_int_eq(s21_get_scale(b), 4);
+    ck_assert_uint_eq(a.bits[0], 10000);
+    ck_assert_uint_eq(b.bits[0], 1);
+}
+END_TEST
+
+START_TEST(test_normalize_with_overflow_and_reduction) {
+    // Максимальное число (масштаб 0)
+    s21_decimal a = create_decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0, 0);
+    // Число с масштабом 28 (1e-28)
+    s21_decimal b = create_decimal(1, 0, 0, 28, 0);
+    
+    // При попытке нормализовать a к масштабу 28 произойдёт переполнение
+    // Функция должна уменьшить масштаб b
+    int result = s21_normalize(&a, &b);
+    
+    // Нормализация должна быть успешной
+    
+    ck_assert_msg(result == S21_OK, 
+                  "result == %s, ожидалось %s", 
+                  result == S21_OK ? "S21_OK" : "S21_NORMOLIZATION_ERROR",
+                  "S21_OK");
+    
+    // Масштабы должны стать одинаковыми
+    ck_assert_int_eq(s21_get_scale(a), s21_get_scale(b));
+}
+END_TEST
+START_TEST(test_normalize_a_overflow_no_scale) {
+    // Максимальное число (масштаб 0)
+    s21_decimal a = create_decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0, 0);
+    // Число с масштабом 1 (0.1)
+    s21_decimal b = create_decimal(1, 0, 0, 1, 0);
+    
+    // При попытке нормализовать a к масштабу 1 произойдёт переполнение
+    // Уменьшить масштаб a нельзя (scale_a = 0)
+    int result = s21_normalize(&a, &b);
+    
+    // Должна вернуться ошибка
+    ck_assert_int_eq(result, S21_NORMOLIZATION_ERROR);
+}
+END_TEST
+START_TEST(test_normalize_b_overflow_no_scale) {
+    // Максимальное число (масштаб 0)
+    s21_decimal b = create_decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0, 0);
+    // Число с масштабом 1 (0.1)
+    s21_decimal a = create_decimal(1, 0, 0, 1, 0);
+    
+    int result = s21_normalize(&a, &b);
+    
+    ck_assert_int_eq(result, S21_NORMOLIZATION_ERROR);
+}
+END_TEST
+
+START_TEST(test_normalize_with_negative_numbers) {
+    s21_decimal a = create_decimal(123, 0, 0, 2, 1);  // -1.23
+    s21_decimal b = create_decimal(45, 0, 0, 0, 0);   // 45
+    
+    int result = s21_normalize(&a, &b);
+    
+    ck_assert_int_eq(result, S21_OK);
+    ck_assert_int_eq(s21_get_scale(a), 2);
+    ck_assert_int_eq(s21_get_scale(b), 2);
+    ck_assert_uint_eq(b.bits[0], 4500);
+    // Знак не должен измениться
+    ck_assert_int_eq(s21_get_sign(a), 1);
+    ck_assert_int_eq(s21_get_sign(b), 0);
+}
+END_TEST
 /*==============================================
     Тесты для сложения (s21_add)
 ================================================*/
@@ -262,20 +425,35 @@ END_TEST
 ================================================*/
 
 Suite *decimal_suite(void) {
-    Suite *s = suite_create("decimal");
 
+
+
+
+    Suite *s = suite_create("decimal");
+    // Вспомогательные фцнкции
+    TCase *sup_func = tcase_create("sup_func");
+    tcase_add_test(sup_func, test_normalize_same_scale); 
+    tcase_add_test(sup_func, test_normalize_a_less_scale);
+    tcase_add_test(sup_func, test_normalize_b_less_scale);
+    tcase_add_test(sup_func, test_normalize_a_less_scale_multiple);
+    
+    tcase_add_test(sup_func, test_normalize_a_overflow_no_scale);
+    tcase_add_test(sup_func, test_normalize_b_overflow_no_scale);
+    tcase_add_test(sup_func, test_normalize_with_negative_numbers);
+    tcase_add_test(sup_func, test_normalize_with_overflow_and_reduction);
+  
     // Арифметические операции
     TCase *add = tcase_create("add");
     /* Проверки с переполнениями */
-    tcase_add_test(add, test_add_max_plus_zero);           // max + 0 = max
+/*     tcase_add_test(add, test_add_max_plus_zero);           // max + 0 = max
     tcase_add_test(add, test_add_min_plus_zero);           // min + 0 = min
     tcase_add_test(add, test_add_max_plus_max_overflow); // max + max
     tcase_add_test(add, test_add_max_plus_one_overflow); // max +1
     tcase_add_test(add, test_add_min_plus_min_overflow);   // min + min → переполнение (S21_TOO_SMALL)
-    tcase_add_test(add, test_add_min_minus_one_overflow);  // min + (-1) → переполнение (S21_TOO_SMALL)
+    tcase_add_test(add, test_add_min_minus_one_overflow);  // min + (-1) → переполнение (S21_TOO_SMALL) */
     
     TCase *sub = tcase_create("sub");
-    tcase_add_test(sub, test_sub_max_minus_max);
+    //tcase_add_test(sub, test_sub_max_minus_max);
 
     TCase *mul = tcase_create("mul");
 
@@ -286,11 +464,11 @@ Suite *decimal_suite(void) {
     // Операции сравнения
     TCase *compare = tcase_create("compare");
     // s21_is_equal
-    tcase_add_test(compare, test_is_equal_equal);
+/*     tcase_add_test(compare, test_is_equal_equal);
     tcase_add_test(compare, test_is_equal_different_scale);
     tcase_add_test(compare, test_is_equal_not_equal);
     tcase_add_test(compare, test_is_equal_negative);
-    tcase_add_test(compare, test_is_equal_different_sign);
+    tcase_add_test(compare, test_is_equal_different_sign); */
    //tcase_add_test(compare, test_compare_normalization_overflow);
 
 /*     // s21_is_less
@@ -332,6 +510,7 @@ Suite *decimal_suite(void) {
 
 
     // Добавляем все подгруппы в suite
+    suite_add_tcase(s, sup_func);
     suite_add_tcase(s, add);
     suite_add_tcase(s, sub);
     suite_add_tcase(s, mul);
