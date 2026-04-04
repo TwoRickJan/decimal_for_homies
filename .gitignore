@@ -1,4 +1,6 @@
 # Prerequisites
+README_for_Qwen.md
+./src/debug/*
 *.d
 **/*:Zone.Identifier
 # Object files
