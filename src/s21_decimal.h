@@ -10,8 +10,13 @@
 
 
 typedef struct {
-    int bits[4];  // 32*4 => ИСПРАВИТЬ НА unsigned int сразу со связями инче не сложно днбажить.
+    unsigned bits[4];  // 32*4 
 } s21_decimal;
+
+typedef struct {
+    unsigned bits[8];  // 32*8
+} s21_u_int_192; // для работы с переполнением
+
 
 // Коды возврата для арифметических операций
 #define S21_OK 0
@@ -52,6 +57,48 @@ int s21_negate(s21_decimal value, s21_decimal *result);
 
 // Банковское округление
 //void s21_bank_round(s21_decimal *value, int remainder);
+
+
+// =========================== CORE: Базовые операции с битами ===========================
+
+int s21_get_sign(s21_decimal d);
+void s21_set_sign(s21_decimal *d, int sign);
+int s21_get_scale(s21_decimal d);
+void s21_set_scale(s21_decimal *d, int scale);
+void s21_zero_decimal(s21_decimal *d);
+int s21_is_zero(s21_decimal d);
+
+void s21_get_mantissa(s21_decimal d, unsigned int *low, unsigned int *mid, unsigned int *high);
+void s21_set_mantissa(s21_decimal *d, unsigned int low, unsigned int mid, unsigned int high);
+
+int s21_get_bit(s21_decimal d, int index);
+void s21_set_bit(s21_decimal *d, int index, int bit);
+int s21_left_shift_one(s21_decimal *d);
+void s21_left_shift_mantissa(s21_decimal *d, int shift);
+int s21_right_shift_one(s21_decimal *d);
+void s21_right_shift_mantissa(s21_decimal *d, int shift);
+
+
+// =========================== MATH: Работа с мантиссой и 192-битная арифметика ===========================
+
+// --- mantissa (96 бит) ---
+int s21_add_mantissa(s21_decimal a, s21_decimal b, s21_decimal *d);
+int s21_sub_mantissa(s21_decimal a, s21_decimal b, s21_decimal *result);
+int s21_compare_abs(s21_decimal a, s21_decimal b);
+int s21_is_greater_mantissa(s21_decimal a, s21_decimal b);
+int s21_is_less_mantissa(s21_decimal a, s21_decimal b);
+
+// --- 192 бит (mul/div) ---
+void s21_add_192(unsigned int *a, unsigned int *b, unsigned int *result);
+void s21_mul_192_by_32(unsigned int *a, unsigned int b, unsigned int *result);
+unsigned int s21_div_192_by_32(unsigned int *a, unsigned int b, unsigned int *result);
+
+// --- работа с 10 ---
+int s21_multiply_by_10(s21_decimal *d);
+void s21_power_of_10(s21_decimal *d, int n);
+void s21_divide_by_10(s21_decimal *d);
+int s21_divide_by_10_with_remainder(s21_decimal *d);
+
 // =========================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ПОТОМ СДЕЛАТЬ STATIC) ===========================
 int s21_get_sign(s21_decimal d);
 void s21_set_sign(s21_decimal *d, int sign);
