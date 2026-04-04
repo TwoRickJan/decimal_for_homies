@@ -55,7 +55,7 @@ int s21_add(s21_decimal value_1, s21_decimal value_2, s21_decimal *result) {
     }
     
     s21_finalize_result(&temp_result, result, max_scale, sign);
-    return S21_TOO_LARGE;
+    return S21_OK;
 }
 
 /*
