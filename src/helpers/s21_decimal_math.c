@@ -1,73 +1,25 @@
+/*
+ * s21_decimal_math.c — математические операции с decimal
+ *
+ * Функции:
+ * - s21_add_mantissa                — сложение мантисс (96 бит)
+ * - s21_sub_mantissa                — вычитание мантисс
+ * - s21_add_sub_mantissa            — сложение/вычитание с учётом знаков
+ * - s21_multiply_by_10              — умножение на 10
+ * - s21_power_of_10                 — умножение на 10^n
+ * - s21_divide_by_10                — деление на 10 с округлением
+ * - s21_divide_by_10_with_remainder — деление на 10 с остатком
+ * - s21_divide_mantissa_by_power_of_10 — деление на 10^scale
+ * - s21_add_192                     — сложение 192-битных чисел
+ * - s21_mul_192_by_32               — умножение 192-битного на 32-битное
+ * - s21_div_192_by_32               — деление 192-битного на 32-битное
+ */
+
 #include "../s21_decimal.h"
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-/* 
-├── s21_decimal_math.c
-│   # ===== ВСЯ МАТЕМАТИКА =====
-│
-│   # --- mantissa (96 бит) ---
-│   static int s21_add_mantissa
-│   static int s21_sub_mantissa
-│   static int s21_compare_abs
-│   static int s21_is_greater_mantissa
-│   static int s21_is_less_mantissa
-│
-│   # --- 192 бит (mul/div) ---
-│   static void         s21_add_192
-│   static void         s21_mul_192_by_32
-│   static unsigned int s21_div_192_by_32
-│
-│   # --- работа с 10 ---
-│   static int  s21_multiply_by_10
-│   static void s21_power_of_10
-│   static void s21_divide_by_10
-│   static int  s21_divide_by_10_with_remainder
-│
-│   # --- rounding ---
-│   static void s21_round_mantissa
-│   static void s21_bank_round
-│
 
- */
+// =========================== МАНТИССА (96 бит) ===========================
 
-/*
- *              --- mantissa (96 бит) ---
- */ 
 
-/*
- * Сложение двух мантисс (96 бит) без учёта масштаба и знака
- * 
- * Возвращает:
- *   0 S21_OK — успешно (результат в d)
- *   1 S21_TOO_LARGE — переполнение (сумма > 2^96 - 1) 
- */
-int s21_add_mantissa(s21_decimal a, s21_decimal b, s21_decimal *d) {
-    unsigned int overflow = 0;
-    s21_decimal result = {0};
-    // Складываем по словам от младшего к старшему
-    // для справки unsigned long long 2 слова 64 бита
-    //  в него складываем результат суммы  a.bits[i]+a.bits[i] , может стать 33 бита
-    // все что старше 32 битов сохраняем в overflow
-    // далее приводим его обратно к формату 32 бита
-    
-    for (int i = 0; i < 3; i++) {
-        unsigned long long sum = (unsigned long long)a.bits[i] + 
-                                  b.bits[i] + 
-                                  overflow;
-        result.bits[i] = sum & S21_MASK_32BIT; //— отбрасываем всё, что не влезло в 32 бита
-        overflow = sum >> 32; // сохраняем превшение больше 32 бит
-    }
-    
-    // Если после сложения всех слов есть переполнение → результат > 96 бит
-    if (overflow) {
-        return S21_TOO_LARGE;  // переполнение
-    }
-    
-    *d = result;
-    return S21_OK;  // успешно
-}
 
 /*
  * Сложение двух мантисс (96 бит) без учёта масштаба и знака

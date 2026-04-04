@@ -1,19 +1,26 @@
-// =========================== ОПЕРАТОРЫ СРАВНЕНИЯ  ===========================
+/*
+ * s21_decimal_compare.c — операции сравнения decimal чисел
+ *
+ * API функции:
+ * - s21_is_less            — меньше
+ * - s21_is_less_or_equal   — меньше или равно
+ * - s21_is_greater         — больше
+ * - s21_is_greater_or_equal — больше или равно
+ * - s21_is_equal           — равно
+ * - s21_is_not_equal       — не равно
+ *
+ * Внутренние функции:
+ * - s21_compare    — основное сравнение с учётом знака и масштаба
+ * - s21_compare_abs — сравнение абсолютных значений
+ */
 
 #include "s21_decimal.h"
 
-
+// =========================== API: СРАВНЕНИЕ ===========================
 
 /*
- * Сравнение двух decimal чисел
- * Возвращает:
- *   0 — S21_OK (нормализация успешна, результат в cmp)
- *   4 — S21_NORMOLIZATION_ERROR (ошибка нормализации)
- * 
- * Результат сравнения передаётся через указатель cmp:
- *   1 — если a > b
- *   0 — если a == b
- *   -1 — если a < b
+ * s21_compare — внутреннее сравнение двух decimal чисел
+ * Результат через указатель cmp: 1 (a>b), 0 (a==b), -1 (a<b)
  */
 int s21_compare(s21_decimal a, s21_decimal b, int *cmp) {
     // Получить знаки и масштабы
@@ -62,7 +69,9 @@ int s21_compare(s21_decimal a, s21_decimal b, int *cmp) {
 }
 
 
-// Сравнение абсолютных значений мантисс (без учёта знака и масштаба)
+/*
+ * s21_compare_abs — сравнение абсолютных значений (без учёта знака)
+ */
 int s21_compare_abs(s21_decimal a, s21_decimal b) {
     if (a.bits[2] != b.bits[2]) {
         return (a.bits[2] > b.bits[2]) ? 1 : -1;
@@ -76,8 +85,9 @@ int s21_compare_abs(s21_decimal a, s21_decimal b) {
     return 0;
 }
 
-
-
+/*
+ * s21_is_less — проверка: a < b
+ */
 int s21_is_less(s21_decimal a, s21_decimal b) {
     int cmp;
     if (s21_compare(a, b, &cmp) != S21_OK) {
@@ -86,6 +96,9 @@ int s21_is_less(s21_decimal a, s21_decimal b) {
     return cmp == -1;
 }
 
+/*
+ * s21_is_equal — проверка: a == b
+ */
 int s21_is_equal(s21_decimal a, s21_decimal b) {
     int cmp;
     if (s21_compare(a, b, &cmp) != S21_OK) {
@@ -94,6 +107,9 @@ int s21_is_equal(s21_decimal a, s21_decimal b) {
     return cmp == 0;
 }
 
+/*
+ * s21_is_greater — проверка: a > b
+ */
 int s21_is_greater(s21_decimal a, s21_decimal b) {
     int cmp;
     if (s21_compare(a, b, &cmp) != S21_OK) {
@@ -102,6 +118,9 @@ int s21_is_greater(s21_decimal a, s21_decimal b) {
     return cmp == 1;
 }
 
+/*
+ * s21_is_less_or_equal — проверка: a <= b
+ */
 int s21_is_less_or_equal(s21_decimal a, s21_decimal b) {
     int cmp;
     if (s21_compare(a, b, &cmp) != S21_OK) {
@@ -110,6 +129,9 @@ int s21_is_less_or_equal(s21_decimal a, s21_decimal b) {
     return cmp == -1 || cmp == 0;
 }
 
+/*
+ * s21_is_greater_or_equal — проверка: a >= b
+ */
 int s21_is_greater_or_equal(s21_decimal a, s21_decimal b) {
     int cmp;
     if (s21_compare(a, b, &cmp) != S21_OK) {
@@ -118,6 +140,9 @@ int s21_is_greater_or_equal(s21_decimal a, s21_decimal b) {
     return cmp == 1 || cmp == 0;
 }
 
+/*
+ * s21_is_not_equal — проверка: a != b
+ */
 int s21_is_not_equal(s21_decimal a, s21_decimal b) {
     int cmp;
     if (s21_compare(a, b, &cmp) != S21_OK) {

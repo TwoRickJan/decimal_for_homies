@@ -1,10 +1,15 @@
-/* │   # --- normalize ---
-│   static int  s21_normalize
-│   static void s21_remove_trailing_zeros
-│   static int  s21_shift_right_mantissa_with_round
-│   static void s21_divide_mantissa_by_power_of_10 */
+/*
+ * s21_decimal_normalize.c — нормализация decimal чисел
+ *
+ * Функции:
+ * - s21_normalize             — приведение двух чисел к одинаковому масштабу
+ * - s21_remove_trailing_zeros — удаление конечных нулей из мантиссы
+ */
 
 #include "../s21_decimal.h"
+
+// =========================== НОРМАЛИЗАЦИЯ ===========================
+
 /*
  * Нормализация чисел (приведение к одинаковому масштабу)
  * При переполнении уменьшает масштаб и округляет
@@ -55,7 +60,9 @@ int s21_normalize(s21_decimal *a, s21_decimal *b) {
 }
 
 
-// Удаление конечных нулей (для нормализации после операций)
+/*
+ * s21_remove_trailing_zeros — удаление конечных нулей из мантиссы
+ */
 void s21_remove_trailing_zeros(s21_decimal *d) {
     int scale = s21_get_scale(*d);
     if (scale == 0) return;
