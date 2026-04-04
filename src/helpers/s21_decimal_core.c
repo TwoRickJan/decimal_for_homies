@@ -13,15 +13,9 @@
  * - s21_left_shift_one  — сдвиг влево на 1 бит
  * - s21_left_shift_mantissa — сдвиг влево на N бит
  * - s21_right_shift_one — сдвиг вправо на 1 бит
- * - s21_right_shift_mantissa — сдвиг вправо на N бит
- * - s21_get_bit         — получение бита по индексу
- * - s21_set_bit         — установка бита по индексу
- * - s21_is_greater_mantissa — сравнение мантисс (>)
- * - s21_is_less_mantissa  — сравнение мантисс (<)
  */
 
 #include "../s21_decimal.h"
-#include <assert.h>
 
 // =========================== ЗНАК И МАСШТАБ ===========================
 
@@ -165,67 +159,5 @@ int s21_right_shift_one(s21_decimal *d) {
     return overflow;
 }
 
-/*
- * Сдвиг мантиссы вправо на shift бит
- * по принципу bits[2] → bits[1] → bits[0]
- */
-void s21_right_shift_mantissa(s21_decimal *d, int shift) {
-    for (int i = 0; i < shift; ++i) {
-        s21_right_shift_one(d);
-    }
-}
-
-/*
- * Получение бита мантиссы по индексу
- * @param d decimal число
- * @param index индекс бита (0-95)
- * @return значение бита (0 или 1)
- * @note Индекс 0 соответствует младшему биту bits[0]
- * @warning index должен быть в диапазоне 0-95
- */
-int s21_get_bit(s21_decimal d, int index) {
-    assert(index >= 0 && index <= 95);  // проверка
-    int word = index / 32; // целую часть получаем и на дробную сдвигаем
-    int bit = index % 32; 
-    return (d.bits[word] >> bit) & 1; // удаляем остатки через умнажение на 0b0001
-}
-
-// Установка бита мантиссы
-void s21_set_bit(s21_decimal *d, int index, int bit) {
-    assert(index >= 0 && index <= 95);  // проверка
-    int word = index / 32;
-    int bit_pos = index % 32;
-    if (bit) {
-        d->bits[word] |= (1u << bit_pos); //когда двигаем влево, важно что unsigned
-    } else {
-        d->bits[word] &= ~(1u << bit_pos);
-    }
-}
-// Сравнение мантисс (a > b)
-int s21_is_greater_mantissa(s21_decimal a, s21_decimal b) {
-    if (a.bits[2] != b.bits[2]) {
-        return (a.bits[2] > b.bits[2]) ? 1 : 0;
-    }
-    if (a.bits[1] != b.bits[1]) {
-        return (a.bits[1] > b.bits[1]) ? 1 : 0;
-    }
-    if (a.bits[0] != b.bits[0]) {
-        return (a.bits[0] > b.bits[0]) ? 1 : 0;
-    }
-    return 0;
-}
-
-// Сравнение мантисс (a < b)
-int s21_is_less_mantissa(s21_decimal a, s21_decimal b) {
-    if (a.bits[2] != b.bits[2]) {
-        return (a.bits[2] < b.bits[2]) ? 1 : 0;
-    }
-    if (a.bits[1] != b.bits[1]) {
-        return (a.bits[1] < b.bits[1]) ? 1 : 0;
-    }
-    if (a.bits[0] != b.bits[0]) {
-        return (a.bits[0] < b.bits[0]) ? 1 : 0;
-    }
-    return 0;
-}
+// =========================== СРАВНЕНИЕ МАНТИСС ===========================
 

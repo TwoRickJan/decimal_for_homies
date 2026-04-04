@@ -6,6 +6,7 @@
  * - s21_sub        — вычитание двух чисел
  * - s21_mul        — умножение двух чисел (заглушка)
  * - s21_div        — деление двух чисел (заглушка)
+ * - s21_negate     — инверсия знака числа
  *
  * Внутренние функции:
  * - s21_handle_zeros            — обработка нулевых операндов
@@ -152,4 +153,17 @@ void s21_finalize_result(s21_decimal *temp, s21_decimal *result, int max_scale, 
     s21_set_scale(temp, max_scale);
     s21_set_sign(temp, sign);
     *result = *temp;
+}
+
+/*
+ * s21_negate — инверсия знака числа
+ */
+int s21_negate(s21_decimal value, s21_decimal *result) {
+    *result = value;
+    if (s21_get_sign(value)) {
+        s21_set_sign(result, 0);
+    } else {
+        s21_set_sign(result, 1);
+    }
+    return S21_OK;
 }

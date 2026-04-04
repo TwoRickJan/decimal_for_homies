@@ -5,7 +5,6 @@
  * - s21_floor     — округление вниз (к -∞)
  * - s21_round     — округление до ближайшего целого
  * - s21_truncate  — отбрасывание дробной части
- * - s21_negate    — инверсия знака
  *
  * Внутренние функции:
  * - s21_bank_round               — банковское округление
@@ -101,18 +100,5 @@ int s21_round(s21_decimal value, s21_decimal *result) {
 int s21_truncate(s21_decimal value, s21_decimal *result) {
     (void)value;
     (void)result;
-    return S21_OK;
-}
-
-/*
- * s21_negate — инверсия знака числа
- */
-int s21_negate(s21_decimal value, s21_decimal *result) {
-    *result = value;
-    if (s21_get_sign(value)) {
-        s21_set_sign(result, 0);
-    } else {
-        s21_set_sign(result, 1);
-    }
     return S21_OK;
 }
